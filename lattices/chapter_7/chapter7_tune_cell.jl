@@ -146,6 +146,16 @@ end
 
 optics_table(tw) = hasproperty(tw, :table) ? tw.table : tw
 
+const zero6 = [0, 0, 0, 0, 0, 0]
+
+function tps_const(x)
+    try
+        return x[zero6]
+    catch
+        return x
+    end
+end
+
 function straight_cell_phase_advances(k)
     # Read the phase advance across one center FODO period from the complete
     # stable ring. Calling twiss on an isolated no-bend cell can leave the
@@ -156,10 +166,10 @@ function straight_cell_phase_advances(k)
     qf_indices = findall(ele -> ele.name == "QFSS_2", elements)
     row4 = qf_indices[4] + 1
     row5 = qf_indices[5] + 1
-    return 360 .* [
+    return 360 .* tps_const.([
         table.phi_1[row5] - table.phi_1[row4],
         table.phi_2[row5] - table.phi_2[row4],
-    ]
+    ])
 end
 
 function tune_cell_metrics(k)
@@ -173,13 +183,13 @@ function tune_cell_metrics(k)
     row4 = qf_indices[4] + 1
     row5 = qf_indices[5] + 1
 
-    periodicity = [
+    periodicity = tps_const.([
         (table.beta_1[row4] - table.beta_1[row5]) / table.beta_1[row5],
         table.alpha_1[row4] - table.alpha_1[row5],
         (table.beta_2[row4] - table.beta_2[row5]) / table.beta_2[row5],
         table.alpha_2[row4] - table.alpha_2[row5],
-    ]
-    tunes = [table.phi_1[end], table.phi_2[end]]
+    ])
+    tunes = tps_const.([table.phi_1[end], table.phi_2[end]])
 
     return (periodicity=periodicity, tunes=tunes, table=table, elements=elements)
 end
