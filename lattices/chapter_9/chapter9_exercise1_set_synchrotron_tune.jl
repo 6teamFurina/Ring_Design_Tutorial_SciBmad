@@ -79,7 +79,7 @@ function build_ring_with_rf(voltage)
 end
 
 function track_one_turn(v0, ring)
-    bunch = Bunch(copy(v0); species=ring.species_ref, R_ref=ring.R_ref)
+    bunch = Bunch(copy(v0); species=ring.species_ref, p_over_q_ref=ring.p_over_q_ref)
     track!(bunch, ring)
     return copy(bunch.coords.v[1, :])
 end
