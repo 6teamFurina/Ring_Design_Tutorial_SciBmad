@@ -78,7 +78,7 @@ end
 function track_a_particle(v0, beamline)
     v = similar(v0)
     v .= v0
-    bunch = Bunch(v; species=beamline.species_ref, R_ref=beamline.R_ref)
+    bunch = Bunch(v; species=beamline.species_ref, p_over_q_ref=beamline.p_over_q_ref)
     track!(bunch, beamline)
     return copy(bunch.coords.v)
 end
