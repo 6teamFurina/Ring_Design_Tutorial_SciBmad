@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 360" width="720" height="360" role="img" aria-labelledby="title desc">
+  <title id="title">Dynamic aperture ray construction</title>
+  <desc id="desc">Dashed rays from the origin mark launch directions. Blue points form a dynamic aperture boundary; green and red points along one ray mark stable and unstable trial particles.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L8,3 z" fill="#111"/>
+    </marker>
+  </defs>
+
+  <rect width="720" height="360" fill="#fff"/>
+
+  <!-- coordinate axes -->
+  <line x1="130" y1="295" x2="625" y2="295" stroke="#111" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="330" y1="330" x2="330" y2="62" stroke="#111" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="642" y="292" font-family="Arial, Helvetica, sans-serif" font-size="34" fill="#111">x</text>
+  <text x="346" y="62" font-family="Arial, Helvetica, sans-serif" font-size="34" fill="#111">y</text>
+
+  <!-- origin -->
+  <circle cx="330" cy="295" r="4.5" fill="#111"/>
+  <text x="278" y="304" font-family="Times New Roman, serif" font-style="italic" font-size="30" fill="#111">O</text>
+
+  <!-- rays -->
+  <g stroke="#111" stroke-width="2.5" stroke-dasharray="10 10" fill="none">
+    <line x1="330" y1="295" x2="190" y2="140"/>
+    <line x1="330" y1="295" x2="286" y2="70"/>
+    <line x1="330" y1="295" x2="455" y2="45"/>
+    <line x1="330" y1="295" x2="545" y2="138"/>
+  </g>
+
+  <!-- theta arc -->
+  <path d="M402 295 A72 72 0 0 0 385 247" stroke="#111" stroke-width="2.5" fill="none"/>
+  <line x1="330" y1="295" x2="392" y2="250" stroke="#111" stroke-width="2.5"/>
+  <text x="417" y="266" font-family="Times New Roman, serif" font-size="28" fill="#111">&#952;</text>
+
+  <!-- trial points along one ray -->
+  <g>
+    <circle cx="355" cy="245" r="5.2" fill="#00a000"/>
+    <circle cx="370" cy="215" r="5.2" fill="#00a000"/>
+    <circle cx="385" cy="185" r="5.2" fill="#00a000"/>
+    <circle cx="395" cy="165" r="5.2" fill="#00a000"/>
+    <circle cx="415" cy="125" r="5.2" fill="#e41a1c"/>
+    <circle cx="430" cy="95" r="5.2" fill="#e41a1c"/>
+    <circle cx="445" cy="65" r="5.2" fill="#e41a1c"/>
+  </g>
+
+  <!-- dynamic aperture points and visual line segments -->
+  <polyline points="205,200 285,158 400,155 505,220" stroke="#5b7fff" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
+  <g fill="#4f7cff">
+    <circle cx="205" cy="200" r="5.5"/>
+    <circle cx="285" cy="158" r="5.5"/>
+    <circle cx="400" cy="155" r="5.5"/>
+    <circle cx="505" cy="220" r="5.5"/>
+  </g>
+</svg>
