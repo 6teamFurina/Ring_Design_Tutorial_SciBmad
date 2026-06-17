@@ -1,4 +1,5 @@
 using LinearAlgebra
+using Random
 using Statistics
 
 function chapter14_find_file(parts...)
@@ -160,6 +161,11 @@ function chapter14_beta_model(s; circumference, base=25.0, modulation=0.35, harm
     return base * (1 + modulation * sin(2pi * harmonic * s / circumference))
 end
 
+function chapter14_alpha_model(s; circumference, base=25.0, modulation=0.35, harmonic=12.0)
+    dbeta_ds = base * modulation * (2pi * harmonic / circumference) * cos(2pi * harmonic * s / circumference)
+    return -0.5 * dbeta_ds
+end
+
 function chapter14_horizontal_response_matrix(bpm_s, ch_s; circumference, tune=54.23)
     response = zeros(length(bpm_s), length(ch_s))
     denom = 2sin(pi * tune)
@@ -176,10 +182,97 @@ function chapter14_horizontal_response_matrix(bpm_s, ch_s; circumference, tune=5
     return response
 end
 
+function chapter14_phase_space_response(obs_s, kicker_s; circumference, tune=54.23, plane=:x)
+    response = zeros(2 * length(obs_s), length(kicker_s))
+    base = plane == :y ? 19.0 : 25.0
+    modulation = plane == :y ? 0.28 : 0.35
+    harmonic = plane == :y ? 10.0 : 12.0
+
+    for i in eachindex(obs_s)
+        beta_i = chapter14_beta_model(obs_s[i]; circumference, base, modulation, harmonic)
+        alpha_i = chapter14_alpha_model(obs_s[i]; circumference, base, modulation, harmonic)
+        for j in eachindex(kicker_s)
+            kicker_s[j] <= obs_s[i] || continue
+
+            beta_j = chapter14_beta_model(kicker_s[j]; circumference, base, modulation=0.25, harmonic)
+            phase = 2pi * tune * (obs_s[i] - kicker_s[j]) / circumference
+            response[2i - 1, j] = sqrt(beta_i * beta_j) * sin(phase)
+            response[2i, j] = sqrt(beta_j / beta_i) * (cos(phase) - alpha_i * sin(phase))
+        end
+    end
+
+    return response
+end
+
+function chapter14_local_bump_solution(kicker_s, ip_s, close_s, initial_ip_phase_space; circumference, tune=54.23, plane=:x)
+    obs_s = [ip_s, close_s]
+    response = chapter14_phase_space_response(obs_s, kicker_s; circumference, tune, plane)
+    target_change = [-initial_ip_phase_space[1], -initial_ip_phase_space[2], 0.0, 0.0]
+    kicks = response \ target_change
+    achieved_change = response * kicks
+    residual = achieved_change - target_change
+    final_ip_phase_space = initial_ip_phase_space + achieved_change[1:2]
+    closure_change = achieved_change[3:4]
+
+    return (; kicks, response, achieved_change, residual, final_ip_phase_space, closure_change)
+end
+
+function chapter14_linear_interpolate(s_data, y_data, s0)
+    idx = searchsortedlast(s_data, s0)
+    idx = clamp(idx, 1, length(s_data) - 1)
+    s1 = s_data[idx]
+    s2 = s_data[idx + 1]
+    y1 = y_data[idx]
+    y2 = y_data[idx + 1]
+    weight = (s0 - s1) / (s2 - s1)
+    return (1 - weight) * y1 + weight * y2
+end
+
+function chapter14_local_slope(s_data, y_data, s0)
+    idx = searchsortedlast(s_data, s0)
+    idx = clamp(idx, 1, length(s_data) - 1)
+    return (y_data[idx + 1] - y_data[idx]) / (s_data[idx + 1] - s_data[idx])
+end
+
 function chapter14_optimize_horizontal_correctors(bpm_s, ch_s, x_bpm; circumference, tune=54.23, regularization=1e-4)
     R = chapter14_horizontal_response_matrix(bpm_s, ch_s; circumference, tune)
 
     # Regularization keeps the fit from using unnecessarily large corrector kicks.
+    A = [R; sqrt(regularization) * I(size(R, 2))]
+    b = [-x_bpm; zeros(size(R, 2))]
+
+    kicks = A \ b
+    corrected_x = x_bpm + R * kicks
+
+    return (; kicks, corrected_x, response=R)
+end
+
+function chapter14_orbit_stability_check(x_bpm; max_allowed=5.0e-3)
+    max_abs = maximum(abs, x_bpm)
+    rms = sqrt(mean(abs2, x_bpm))
+    penalty = max(0.0, max_abs / max_allowed - 1.0)^2
+    return (; stable=max_abs <= max_allowed, max_abs, rms, penalty)
+end
+
+function chapter14_single_pass_response_matrix(bpm_s, kicker_s; circumference, tune=54.23)
+    response = zeros(length(bpm_s), length(kicker_s))
+
+    for i in eachindex(bpm_s)
+        beta_i = chapter14_beta_model(bpm_s[i]; circumference)
+        for j in eachindex(kicker_s)
+            if bpm_s[i] >= kicker_s[j]
+                beta_j = chapter14_beta_model(kicker_s[j]; circumference, harmonic=12.0, modulation=0.25)
+                phase = 2pi * tune * (bpm_s[i] - kicker_s[j]) / circumference
+                response[i, j] = sqrt(beta_i * beta_j) * sin(phase)
+            end
+        end
+    end
+
+    return response
+end
+
+function chapter14_optimize_single_pass_horizontal_correctors(bpm_s, ch_s, x_bpm; circumference, tune=54.23, regularization=1e-3)
+    R = chapter14_single_pass_response_matrix(bpm_s, ch_s; circumference, tune)
     A = [R; sqrt(regularization) * I(size(R, 2))]
     b = [-x_bpm; zeros(size(R, 2))]
 
@@ -212,4 +305,73 @@ function chapter14_write_optimized_ring(path, optimized_ring)
 
     write(path, content)
     return path
+end
+
+function chapter14_format_string_vector(values; per_line=4)
+    rows = String[]
+    for start in 1:per_line:length(values)
+        stop = min(start + per_line - 1, length(values))
+        push!(rows, "    " * join((repr(String(v)) for v in values[start:stop]), ", "))
+    end
+    return "[\n" * join(rows, ",\n") * "\n]"
+end
+
+function chapter14_write_local_bump_solution(path, local_bump)
+    content = """
+    # Generated from the Chapter 14.4 local IP bump exercise.
+    # Include chapter14_sawtooth_ring_before.jl before using this with the ring layout.
+
+    const CH14_LOCAL_BUMP_SOLUTION = (
+        ip_s = $(repr(Float64(local_bump.ip_s))),
+        close_s = $(repr(Float64(local_bump.close_s))),
+        horizontal_kicker_names = $(chapter14_format_string_vector(local_bump.horizontal_kicker_names)),
+        vertical_kicker_names = $(chapter14_format_string_vector(local_bump.vertical_kicker_names)),
+        horizontal_kicker_s = $(chapter14_format_float_vector(local_bump.horizontal_kicker_s)),
+        vertical_kicker_s = $(chapter14_format_float_vector(local_bump.vertical_kicker_s)),
+        horizontal_kicks = $(chapter14_format_float_vector(local_bump.horizontal_kicks)),
+        vertical_kicks = $(chapter14_format_float_vector(local_bump.vertical_kicks)),
+        horizontal_initial_ip = $(chapter14_format_float_vector(local_bump.horizontal_initial_ip; per_line=2)),
+        vertical_initial_ip = $(chapter14_format_float_vector(local_bump.vertical_initial_ip; per_line=2)),
+        horizontal_final_ip = $(chapter14_format_float_vector(local_bump.horizontal_final_ip; per_line=2)),
+        vertical_final_ip = $(chapter14_format_float_vector(local_bump.vertical_final_ip; per_line=2)),
+        horizontal_closure_change = $(chapter14_format_float_vector(local_bump.horizontal_closure_change; per_line=2)),
+        vertical_closure_change = $(chapter14_format_float_vector(local_bump.vertical_closure_change; per_line=2)),
+        horizontal_residual = $(chapter14_format_float_vector(local_bump.horizontal_residual)),
+        vertical_residual = $(chapter14_format_float_vector(local_bump.vertical_residual)),
+    )
+    """
+
+    write(path, content)
+    return path
+end
+
+function chapter14_truncated_gaussian(n; sigma=1.0e-5, cutoff=3.0, seed=14)
+    values = zeros(n)
+    rng = Random.MersenneTwister(seed)
+
+    for i in 1:n
+        while true
+            candidate = sigma * randn(rng)
+            if abs(candidate) <= cutoff * sigma
+                values[i] = candidate
+                break
+            end
+        end
+    end
+
+    return values
+end
+
+function chapter14_quadrupole_misalignment_orbit(bpm_s, quad_s, quad_k1l, quad_x_offsets; circumference, tune=54.23)
+    response = chapter14_horizontal_response_matrix(bpm_s, quad_s; circumference, tune)
+    equivalent_kicks = quad_k1l .* quad_x_offsets
+    orbit = response * equivalent_kicks
+    return (; orbit, equivalent_kicks, response)
+end
+
+function chapter14_quadrupole_single_pass_orbit(bpm_s, quad_s, quad_k1l, quad_x_offsets; circumference, tune=54.23)
+    response = chapter14_single_pass_response_matrix(bpm_s, quad_s; circumference, tune)
+    equivalent_kicks = quad_k1l .* quad_x_offsets
+    orbit = response * equivalent_kicks
+    return (; orbit, equivalent_kicks, response)
 end
