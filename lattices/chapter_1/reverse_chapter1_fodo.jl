@@ -136,6 +136,7 @@ kQF_arc_R = $(repr(kQF_arc_R))
 kQD_arc_R = $(repr(kQD_arc_R))
 """
 
-solution_path = joinpath(tutorial_root, "chapter1_fodoR_solution.jl")
+solution_path = joinpath(tutorial_root, "lattices", "chapter_1", "chapter1_fodoR_solution.jl")
+mkpath(dirname(solution_path))
 write(solution_path, solution_text)
 println("\nWrote ", solution_path)

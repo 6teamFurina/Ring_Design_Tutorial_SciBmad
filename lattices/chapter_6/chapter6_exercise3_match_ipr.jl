@@ -87,6 +87,7 @@ K_QER3 = $(repr(K_QER3))
 K_QER4 = $(repr(K_QER4))
 """
 
-solution_path = joinpath(tutorial_root, "chapter6_IPR_solution.jl")
+solution_path = joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IPR_solution.jl")
+mkpath(dirname(solution_path))
 write(solution_path, solution_text)
 println("\nWrote ", solution_path)

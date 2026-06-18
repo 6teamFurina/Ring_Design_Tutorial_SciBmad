@@ -8,7 +8,7 @@ using LinearAlgebra
 using Printf
 
 const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
-const chapter1_solution = joinpath(tutorial_root, "chapter1_fodoR_solution.jl")
+const chapter1_solution = joinpath(tutorial_root, "lattices", "chapter_1", "chapter1_fodoR_solution.jl")
 
 isfile(chapter1_solution) ||
     error("Run reverse_chapter1_fodo.jl first.")
@@ -166,6 +166,7 @@ kQFR1 = $(repr(kQFR1))
 kQDR1 = $(repr(kQDR1))
 """
 
-solution_path = joinpath(tutorial_root, "chapter2_dispsupR_solution.jl")
+solution_path = joinpath(tutorial_root, "lattices", "chapter_2", "chapter2_dispsupR_solution.jl")
+mkpath(dirname(solution_path))
 write(solution_path, solution_text)
 println("\nWrote ", solution_path)

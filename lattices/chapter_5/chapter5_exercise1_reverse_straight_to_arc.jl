@@ -10,9 +10,9 @@ using SciBmad
 using Printf
 
 const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
-const chapter1_solution = joinpath(tutorial_root, "chapter1_fodoF_solution.jl")
-const chapter2_solution = joinpath(tutorial_root, "chapter2_dispsupF_solution.jl")
-const chapter3_solution = joinpath(tutorial_root, "chapter3_mSSF_solution.jl")
+const chapter1_solution = joinpath(tutorial_root, "lattices", "chapter_1", "chapter1_fodoF_solution.jl")
+const chapter2_solution = joinpath(tutorial_root, "lattices", "chapter_2", "chapter2_dispsupF_solution.jl")
+const chapter3_solution = joinpath(tutorial_root, "lattices", "chapter_3", "chapter3_mSSF_solution.jl")
 
 isfile(chapter1_solution) ||
     error("Cannot find chapter1_fodoF_solution.jl. Run Chapter 1 first.")

@@ -10,12 +10,12 @@ using SciBmad
 tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
 
 solution_files = [
-    "chapter1_fodoF_solution.jl",
-    "chapter1_fodoR_solution.jl",
-    "chapter2_dispsupF_solution.jl",
-    "chapter2_dispsupR_solution.jl",
-    "chapter3_mSSF_solution.jl",
-    "chapter3_mSSR_solution.jl",
+    joinpath("lattices", "chapter_1", "chapter1_fodoF_solution.jl"),
+    joinpath("lattices", "chapter_1", "chapter1_fodoR_solution.jl"),
+    joinpath("lattices", "chapter_2", "chapter2_dispsupF_solution.jl"),
+    joinpath("lattices", "chapter_2", "chapter2_dispsupR_solution.jl"),
+    joinpath("lattices", "chapter_3", "chapter3_mSSF_solution.jl"),
+    joinpath("lattices", "chapter_3", "chapter3_mSSR_solution.jl"),
 ]
 
 for file in solution_files

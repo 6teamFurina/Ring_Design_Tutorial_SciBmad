@@ -11,7 +11,7 @@ using Printf
 
 const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
 include(joinpath(tutorial_root, "lattices", "chapter_5", "chapter5_ring_definition.jl"))
-include(joinpath(tutorial_root, "chapter6_IR_solution.jl"))
+include(joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IR_solution.jl"))
 
 const C5 = Chapter5Ring
 const TARGET_TUNES = [54.08, 54.14]

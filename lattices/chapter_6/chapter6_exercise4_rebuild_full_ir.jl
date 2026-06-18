@@ -4,8 +4,8 @@
 include(joinpath(@__DIR__, "chapter6_matching_common.jl"))
 
 const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
-include(joinpath(tutorial_root, "chapter6_IPF_solution.jl"))
-include(joinpath(tutorial_root, "chapter6_IPR_solution.jl"))
+include(joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IPF_solution.jl"))
+include(joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IPR_solution.jl"))
 
 const K_IPF_FIXED = [K_QEF1, K_QEF2, K_QEF3, K_QEF4]
 const K_IPR_START = [K_QER1, K_QER2, K_QER3, K_QER4]
@@ -102,7 +102,7 @@ K_QER3 = $(repr(K_QER3_FINAL))
 K_QER4 = $(repr(K_QER4_FINAL))
 """
 
-solution_path = joinpath(tutorial_root, "chapter6_IR_solution.jl")
+solution_path = joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IR_solution.jl")
+mkpath(dirname(solution_path))
 write(solution_path, solution_text)
 println("\nWrote ", solution_path)
-

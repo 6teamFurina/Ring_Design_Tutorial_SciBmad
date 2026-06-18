@@ -72,6 +72,7 @@ K_QEF3 = $(repr(K_QEF3))
 K_QEF4 = $(repr(K_QEF4))
 """
 
-solution_path = joinpath(tutorial_root, "chapter6_IPF_solution.jl")
+solution_path = joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IPF_solution.jl")
+mkpath(dirname(solution_path))
 write(solution_path, solution_text)
 println("\nWrote ", solution_path)
