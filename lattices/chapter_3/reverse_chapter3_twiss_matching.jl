@@ -99,13 +99,30 @@ function transfer_matrix_gtpsa(beamline; x0=zeros(6))
     )
 end
 
+function linear_map_with_descriptor(beamline, d; x0=zeros(6))
+    xvars = vars(d)
+    v0 = [x0[i] + xvars[i] for i in 1:6]
+    vout = track_a_particle(v0, beamline)
+
+    M = Matrix{Any}(undef, 6, 6)
+    for i in 1:6, j in 1:6
+        powers = zeros(Int, 6)
+        powers[j] = 1
+        M[i, j] = par(vout[i], [powers...,:])
+    end
+    return M
+end
+
+parameter_gradient(x) = GTPSA.gradient(x, include_params=true)[7:end]
+tps_const(x) = try x[zeros(Int, 6)] catch; x end
+
 function transverse_blocks(M)
     return M[1:2, 1:2], M[3:4, 3:4]
 end
 
 struct Twiss
-    beta::Float64
-    alpha::Float64
+    beta
+    alpha
 end
 
 gamma(t::Twiss) = (1 + t.alpha^2) / t.beta
@@ -159,8 +176,11 @@ Mx_ss, My_ss = transverse_blocks(transfer_matrix_gtpsa(build_reverse_straight_fo
 target_x = periodic_twiss_from_matrix(Mx_ss)
 target_y = periodic_twiss_from_matrix(My_ss)
 
-function matching_residual(k)
-    Mx, My = transverse_blocks(transfer_matrix_gtpsa(build_MSSR(k)))
+const d_mssr_knobs = Descriptor(6, 2, 4, 1)
+const dk_mssr_R = params(d_mssr_knobs)
+
+function matching_residual_with_knobs(k)
+    Mx, My = transverse_blocks(linear_map_with_descriptor(build_MSSR(k .+ dk_mssr_R), d_mssr_knobs))
     output_x = propagate_twiss(input_x, Mx)
     output_y = propagate_twiss(input_y, My)
     return [
@@ -171,17 +191,11 @@ function matching_residual(k)
     ]
 end
 
-function residual_jacobian(f, x; fd_step=1e-6)
-    r0 = f(x)
-    J = zeros(length(r0), length(x))
-    for j in eachindex(x)
-        xp = copy(x)
-        xm = copy(x)
-        xp[j] += fd_step
-        xm[j] -= fd_step
-        J[:, j] = (f(xp) - f(xm)) / (2fd_step)
-    end
-    return J
+matching_residual(k) = tps_const.(matching_residual_with_knobs(k))
+
+function residual_jacobian(k)
+    residual = matching_residual_with_knobs(k)
+    return vcat((parameter_gradient(r)' for r in residual)...)
 end
 
 function damped_least_squares(f, x0; maxiter=60, tol=1e-12, lambda0=1e-3)
@@ -191,7 +205,7 @@ function damped_least_squares(f, x0; maxiter=60, tol=1e-12, lambda0=1e-3)
     for iter in 1:maxiter
         r = f(x)
         merit_now = sum(abs2, r)
-        J = residual_jacobian(f, x)
+        J = residual_jacobian(x)
         step = -(J' * J + lambda * I) \ (J' * r)
         trial = x + step
         merit_trial = sum(abs2, f(trial))
