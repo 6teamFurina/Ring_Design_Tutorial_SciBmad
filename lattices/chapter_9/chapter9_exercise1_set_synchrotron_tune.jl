@@ -6,10 +6,13 @@
 #
 # This script:
 #   1. builds the Chapter 5 ring with four FODORF cells at 10 o'clock;
-#   2. calculates Qz by numerically linearizing one-turn tracking;
+#   2. calculates Qz from the GTPSA one-turn tracking Jacobian;
 #   3. uses bisection to find the common RF0 voltage that gives Qz = 0.05.
 
 using SciBmad
+using GTPSA
+using DifferentiationInterface
+import DifferentiationInterface as DI
 using LinearAlgebra
 using Printf
 
@@ -79,35 +82,37 @@ function build_ring_with_rf(voltage)
 end
 
 function track_one_turn(v0, ring)
-    bunch = Bunch(copy(v0); species=ring.species_ref, p_over_q_ref=ring.p_over_q_ref)
+    v = similar(v0)
+    v .= v0
+    bunch = Bunch(v; species=ring.species_ref, p_over_q_ref=ring.p_over_q_ref)
     track!(bunch, ring)
-    return copy(bunch.coords.v[1, :])
+    return copy(bunch.coords.v)
 end
 
-function longitudinal_one_turn_matrix(ring; dz=1e-5, dpz=1e-7)
+function transfer_matrix_gtpsa(ring; x0=zeros(6))
+    prep = DI.prepare_jacobian(
+        track_one_turn,
+        AutoGTPSA(),
+        x0,
+        DI.Constant(ring),
+    )
+    return DI.jacobian(
+        track_one_turn,
+        prep,
+        AutoGTPSA(),
+        x0,
+        DI.Constant(ring),
+    )
+end
+
+function longitudinal_one_turn_matrix(ring)
     # The RF phase used here makes the phase-space origin the synchronous
-    # closed orbit. Centered finite differences give the local 2x2 map:
+    # closed orbit. GTPSA gives the local 2x2 longitudinal map directly:
     #
     #       [ z_final  ]       [ z_initial  ]
     #       [ pz_final ] = Mz * [ pz_initial ].
-    #
-    # Different step sizes are used because z has units of metres while pz
-    # is dimensionless.
-    steps = (dz, dpz)
-    Mz = zeros(2, 2)
-
-    for (column, step) in enumerate(steps)
-        vp = zeros(6)
-        vm = zeros(6)
-        coordinate = column == 1 ? 5 : 6
-        vp[coordinate] = step
-        vm[coordinate] = -step
-
-        fp = track_one_turn(vp, ring)
-        fm = track_one_turn(vm, ring)
-        Mz[:, column] .= (fp[[5, 6]] - fm[[5, 6]]) / (2step)
-    end
-    return Mz
+    M = transfer_matrix_gtpsa(ring)
+    return M[[5, 6], [5, 6]]
 end
 
 function synchrotron_tune(voltage)
