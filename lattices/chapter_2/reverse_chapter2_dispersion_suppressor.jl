@@ -2,8 +2,6 @@
 
 using SciBmad
 using GTPSA
-using DifferentiationInterface
-import DifferentiationInterface as DI
 using LinearAlgebra
 using Printf
 
@@ -58,26 +56,27 @@ end
 function track_a_particle(v0, beamline)
     v = similar(v0)
     v .= v0
-    bunch = Bunch(v; species=beamline.species_ref, R_ref=beamline.R_ref)
+    bunch = Bunch(v; species=beamline.species_ref, p_over_q_ref=beamline.p_over_q_ref)
     track!(bunch, beamline)
     return copy(bunch.coords.v)
 end
 
-function linear_map(beamline; x0=zeros(6))
-    prep = DI.prepare_jacobian(
-        track_a_particle,
-        AutoGTPSA(),
-        x0,
-        DI.Constant(beamline),
-    )
-    return DI.jacobian(
-        track_a_particle,
-        prep,
-        AutoGTPSA(),
-        x0,
-        DI.Constant(beamline),
-    )
+function linear_map_with_descriptor(beamline, d; x0=zeros(6))
+    xvars = vars(d)
+    v0 = [x0[i] + xvars[i] for i in 1:6]
+    vout = track_a_particle(v0, beamline)
+
+    M = Matrix{Any}(undef, 6, 6)
+    for i in 1:6, j in 1:6
+        powers = zeros(Int, 6)
+        powers[j] = 1
+        M[i, j] = par(vout[i], [powers...,:])
+    end
+    return M
 end
+
+parameter_gradient(x) = GTPSA.gradient(x, include_params=true)[7:end]
+tps_const(x) = try x[zeros(Int, 6)] catch; x end
 
 function periodic_dispersion_from_map(M)
     A = M[1:2, 1:2]
@@ -90,35 +89,38 @@ function transport_dispersion(M, D0)
     return M[1:2, 1:2] * D0 + M[1:2, 6]
 end
 
-M_arc_R = linear_map(build_reverse_arc_fodo())
+const d_suppressor_knobs = Descriptor(6, 2, 2, 1)
+const dk_suppressor_R = params(d_suppressor_knobs)
+
+M_arc_R = tps_const.(linear_map_with_descriptor(build_reverse_arc_fodo(), d_suppressor_knobs))
 D_arc_R = periodic_dispersion_from_map(M_arc_R)
 
-function suppressor_residual(k)
-    M = linear_map(build_reverse_suppressor(k[1], k[2]))
+function suppressor_end_dispersion_with_knobs(k)
+    M = linear_map_with_descriptor(
+        build_reverse_suppressor(k[1] + dk_suppressor_R[1], k[2] + dk_suppressor_R[2]),
+        d_suppressor_knobs,
+    )
     return transport_dispersion(M, D_arc_R)
 end
 
-function residual_jacobian(f, x; fd_step=1e-6)
-    r0 = f(x)
-    J = zeros(length(r0), length(x))
-    for j in eachindex(x)
-        xp = copy(x)
-        xm = copy(x)
-        xp[j] += fd_step
-        xm[j] -= fd_step
-        J[:, j] = (f(xp) - f(xm)) / (2fd_step)
-    end
-    return J
+function suppressor_residual(k)
+    Dend = suppressor_end_dispersion_with_knobs(k)
+    return tps_const.(Dend)
 end
 
-function damped_least_squares(f, x0; maxiter=40, tol=1e-12, lambda0=1e-3)
+function suppressor_residual_jacobian(k)
+    Dend = suppressor_end_dispersion_with_knobs(k)
+    return vcat(parameter_gradient(Dend[1])', parameter_gradient(Dend[2])')
+end
+
+function damped_least_squares(f, jacobian, x0; maxiter=40, tol=1e-12, lambda0=1e-3)
     x = copy(x0)
     lambda = lambda0
 
     for iter in 1:maxiter
         r = f(x)
         merit_now = sum(abs2, r)
-        J = residual_jacobian(f, x)
+        J = jacobian(x)
         step = -(J' * J + lambda * I) \ (J' * r)
         trial = x + step
         merit_trial = sum(abs2, f(trial))
@@ -143,7 +145,7 @@ function damped_least_squares(f, x0; maxiter=40, tol=1e-12, lambda0=1e-3)
 end
 
 k_start = [kQF_arc_R, kQD_arc_R]
-k_suppressor_R = damped_least_squares(suppressor_residual, k_start)
+k_suppressor_R = damped_least_squares(suppressor_residual, suppressor_residual_jacobian, k_start)
 kQFR1, kQDR1 = k_suppressor_R
 
 println("\nPeriodic reverse-arc dispersion at suppressor entrance:")

@@ -2,8 +2,6 @@
 
 using SciBmad
 using GTPSA
-using DifferentiationInterface
-import DifferentiationInterface as DI
 using LinearAlgebra
 using Printf
 
@@ -36,60 +34,69 @@ end
 function track_a_particle(v0, beamline)
     v = similar(v0)
     v .= v0
-    bunch = Bunch(v; species=beamline.species_ref, R_ref=beamline.R_ref)
+    bunch = Bunch(v; species=beamline.species_ref, p_over_q_ref=beamline.p_over_q_ref)
     track!(bunch, beamline)
     return copy(bunch.coords.v)
 end
 
-function linear_map(beamline; x0=zeros(6))
-    prep = DI.prepare_jacobian(
-        track_a_particle,
-        AutoGTPSA(),
-        x0,
-        DI.Constant(beamline),
-    )
-    return DI.jacobian(
-        track_a_particle,
-        prep,
-        AutoGTPSA(),
-        x0,
-        DI.Constant(beamline),
-    )
+function linear_map_with_descriptor(beamline, d; x0=zeros(6))
+    xvars = vars(d)
+    v0 = [x0[i] + xvars[i] for i in 1:6]
+    vout = track_a_particle(v0, beamline)
+
+    M = Matrix{Any}(undef, 6, 6)
+    for i in 1:6, j in 1:6
+        powers = zeros(Int, 6)
+        powers[j] = 1
+        M[i, j] = par(vout[i], [powers...,:])
+    end
+    return M
 end
+
+parameter_gradient(x) = GTPSA.gradient(x, include_params=true)[7:end]
+tps_const(x) = try x[zeros(Int, 6)] catch; x end
 
 function stable_phase_advance(M2)
     cos_mu = clamp(0.5 * tr(M2), -1.0, 1.0)
     return acos(cos_mu)
 end
 
+function stable_phase_advance_with_params(M2)
+    cos_mu = 0.5 * tr(M2)
+    return acos(cos_mu)
+end
+
+const d_reverse_knobs = Descriptor(6, 2, 2, 1)
+const dk_reverse = params(d_reverse_knobs)
+
+function phase_advances_with_knobs(k)
+    M = linear_map_with_descriptor(
+        build_reverse_arc_fodo(k[1] + dk_reverse[1], k[2] + dk_reverse[2]),
+        d_reverse_knobs,
+    )
+    mu_x = stable_phase_advance_with_params(M[1:2, 1:2])
+    mu_y = stable_phase_advance_with_params(M[3:4, 3:4])
+    return mu_x, mu_y
+end
+
 function phase_residual(k)
-    M = linear_map(build_reverse_arc_fodo(k[1], k[2]))
-    mu_x = stable_phase_advance(M[1:2, 1:2])
-    mu_y = stable_phase_advance(M[3:4, 3:4])
-    return [mu_x - pi / 2, mu_y - pi / 2]
+    mu_x, mu_y = phase_advances_with_knobs(k)
+    return [tps_const(mu_x) - pi / 2, tps_const(mu_y) - pi / 2]
 end
 
-function residual_jacobian(f, x; fd_step=1e-6)
-    r0 = f(x)
-    J = zeros(length(r0), length(x))
-    for j in eachindex(x)
-        xp = copy(x)
-        xm = copy(x)
-        xp[j] += fd_step
-        xm[j] -= fd_step
-        J[:, j] = (f(xp) - f(xm)) / (2fd_step)
-    end
-    return J
+function phase_residual_jacobian(k)
+    mu_x, mu_y = phase_advances_with_knobs(k)
+    return vcat(parameter_gradient(mu_x)', parameter_gradient(mu_y)')
 end
 
-function damped_least_squares(f, x0; maxiter=40, tol=1e-12, lambda0=1e-3)
+function damped_least_squares(f, jacobian, x0; maxiter=40, tol=1e-12, lambda0=1e-3)
     x = copy(x0)
     lambda = lambda0
 
     for iter in 1:maxiter
         r = f(x)
         merit_now = sum(abs2, r)
-        J = residual_jacobian(f, x)
+        J = jacobian(x)
         step = -(J' * J + lambda * I) \ (J' * r)
         trial = x + step
         merit_trial = sum(abs2, f(trial))
@@ -114,10 +121,10 @@ function damped_least_squares(f, x0; maxiter=40, tol=1e-12, lambda0=1e-3)
 end
 
 k_start = [0.4, -0.4]
-k_reverse = damped_least_squares(phase_residual, k_start)
+k_reverse = damped_least_squares(phase_residual, phase_residual_jacobian, k_start)
 kQF_arc_R, kQD_arc_R = k_reverse
 
-M_reverse = linear_map(build_reverse_arc_fodo(kQF_arc_R, kQD_arc_R))
+M_reverse = tps_const.(linear_map_with_descriptor(build_reverse_arc_fodo(kQF_arc_R, kQD_arc_R), d_reverse_knobs))
 mu_x = stable_phase_advance(M_reverse[1:2, 1:2])
 mu_y = stable_phase_advance(M_reverse[3:4, 3:4])
 
