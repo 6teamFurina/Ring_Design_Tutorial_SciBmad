@@ -6,6 +6,7 @@
 # families set the optics and phase advance of all FODO cells in the straight.
 
 using SciBmad
+using GTPSA
 using LinearAlgebra
 using Printf
 
@@ -15,6 +16,8 @@ include(joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IR_solution.j
 
 const C5 = Chapter5Ring
 const TARGET_TUNES = [54.08, 54.14]
+const TUNE_DESCRIPTOR = Descriptor(6, 2, 6, 1)
+const DK_TUNE = params(TUNE_DESCRIPTOR)
 
 # The six independent knobs are ordered as:
 # QFF2_2, QDF2_2, QFF3_2, QDF3_2, QFSS_2, QDSS_2.
@@ -27,23 +30,26 @@ const K_START = [
     C5.quad_strength[:QDSS],
 ]
 
-special_quad_strength(k) = Dict(
-    :QFF2_2 => k[1],
-    :QDF2_2 => k[2],
-    :QFF3_2 => k[3],
-    :QDF3_2 => k[4],
-    :QFSS_2 => k[5],
-    :QDSS_2 => k[6],
-)
+function special_quad_strength(k; knobs=nothing)
+    strength(i) = isnothing(knobs) ? k[i] : k[i] + knobs[i]
+    return Dict(
+        :QFF2_2 => strength(1),
+        :QDF2_2 => strength(2),
+        :QFF3_2 => strength(3),
+        :QDF3_2 => strength(4),
+        :QFSS_2 => strength(5),
+        :QDSS_2 => strength(6),
+    )
+end
 
-function make_tune_element(name::Symbol, k)
-    strengths = special_quad_strength(k)
+function make_tune_element(name::Symbol, k; knobs=nothing)
+    strengths = special_quad_strength(k; knobs=knobs)
     haskey(strengths, name) &&
         return Quadrupole(name=String(name), L=C5.L_quad, Kn1=strengths[name])
     return C5.make_element(name)
 end
 
-make_tune_elements(line, k) = [make_tune_element(name, k) for name in line]
+make_tune_elements(line, k; knobs=nothing) = [make_tune_element(name, k; knobs=knobs) for name in line]
 
 # All physical QFSS_2 magnets share k[5], and all QDSS_2 magnets share k[6].
 const FODOSSF_2 = [:QFSS_2, :D1, :DB, :D2, :QDSS_2, :D1, :DB, :D2]
@@ -94,20 +100,20 @@ function build_IPR_elements()
     ]
 end
 
-function build_ring_with_tune_cell(k)
+function build_ring_with_tune_cell(k; knobs=nothing)
     # The tune cell occupies the straight between the end of sextant 1 and the
     # beginning of sextant 3. The low-beta IR from Chapter 6 remains at IP6.
     sextant1_tune = vcat(
         C5.make_elements(C5.repeat_line(C5.FODOSSF, 4)),
         C5.make_elements(C5.SS_TO_ARCF),
         C5.make_elements(C5.repeat_line(C5.FODOAF, 20)),
-        make_tune_elements(ARC_TO_SSF_2, k),
-        make_tune_elements(C5.repeat_line(FODOSSF_2, 4), k),
+        make_tune_elements(ARC_TO_SSF_2, k; knobs=knobs),
+        make_tune_elements(C5.repeat_line(FODOSSF_2, 4), k; knobs=knobs),
     )
 
     sextant3_tune = vcat(
-        make_tune_elements(C5.repeat_line(FODOSSR_2, 4), k),
-        make_tune_elements(SS_TO_ARCR_2, k),
+        make_tune_elements(C5.repeat_line(FODOSSR_2, 4), k; knobs=knobs),
+        make_tune_elements(SS_TO_ARCR_2, k; knobs=knobs),
         C5.make_elements(C5.repeat_line(C5.FODOAR, 20)),
         C5.make_elements(C5.ARC_TO_SSR),
         C5.make_elements(C5.repeat_line(C5.FODOSSR, 4)),
@@ -156,6 +162,8 @@ function tps_const(x)
     end
 end
 
+parameter_gradient(x) = GTPSA.gradient(x, include_params=true)[7:end]
+
 function straight_cell_phase_advances(k)
     # Read the phase advance across one center FODO period from the complete
     # stable ring. Calling twiss on an isolated no-bend cell can leave the
@@ -172,9 +180,10 @@ function straight_cell_phase_advances(k)
     ])
 end
 
-function tune_cell_metrics(k)
-    ring, elements = build_ring_with_tune_cell(k)
-    table = optics_table(twiss(ring))
+function tune_cell_metrics(k; knobs=nothing, descriptor=nothing, constants=true)
+    ring, elements = build_ring_with_tune_cell(k; knobs=knobs)
+    tw = isnothing(descriptor) ? twiss(ring) : twiss(ring, GTPSA_descriptor=descriptor)
+    table = optics_table(tw)
 
     # The fourth and fifth QFSS_2 magnets are one FODO period apart at the
     # center. Equal Twiss values at these locations enforce local periodicity.
@@ -183,13 +192,18 @@ function tune_cell_metrics(k)
     row4 = qf_indices[4] + 1
     row5 = qf_indices[5] + 1
 
-    periodicity = tps_const.([
+    periodicity = [
         (table.beta_1[row4] - table.beta_1[row5]) / table.beta_1[row5],
         table.alpha_1[row4] - table.alpha_1[row5],
         (table.beta_2[row4] - table.beta_2[row5]) / table.beta_2[row5],
         table.alpha_2[row4] - table.alpha_2[row5],
-    ])
-    tunes = tps_const.([table.phi_1[end], table.phi_2[end]])
+    ]
+    tunes = [table.phi_1[end], table.phi_2[end]]
+
+    if constants
+        periodicity = tps_const.(periodicity)
+        tunes = tps_const.(tunes)
+    end
 
     return (periodicity=periodicity, tunes=tunes, table=table, elements=elements)
 end
@@ -199,23 +213,25 @@ function tune_cell_residual(k)
     return vcat(metrics.periodicity, metrics.tunes - TARGET_TUNES)
 end
 
-function residual_jacobian(f, x; fd_step=1e-6)
-    r0 = f(x)
-    J = zeros(length(r0), length(x))
-    for j in eachindex(x)
-        xp = copy(x)
-        xm = copy(x)
-        xp[j] += fd_step
-        xm[j] -= fd_step
-        J[:, j] = (f(xp) - f(xm)) / (2fd_step)
-    end
-    return J
+function tune_cell_residual_with_knobs(k)
+    metrics = tune_cell_metrics(
+        k;
+        knobs=DK_TUNE,
+        descriptor=TUNE_DESCRIPTOR,
+        constants=false,
+    )
+    return vcat(metrics.periodicity, metrics.tunes .- TARGET_TUNES)
+end
+
+function tune_cell_residual_jacobian(k)
+    residual = tune_cell_residual_with_knobs(k)
+    return vcat((parameter_gradient(r)' for r in residual)...)
 end
 
 function damped_least_squares(
     f,
     x0;
-    fd_step=1e-6,
+    jacobian=tune_cell_residual_jacobian,
     maxiter=60,
     tol=1e-11,
     lambda0=1e-3,
@@ -226,7 +242,7 @@ function damped_least_squares(
     for iter in 1:maxiter
         r = f(x)
         merit_now = sum(abs2, r)
-        J = residual_jacobian(f, x; fd_step=fd_step)
+        J = jacobian(x)
         step = -(J' * J + lambda * I) \ (J' * r)
         trial = x + step
         merit_trial = sum(abs2, f(trial))
