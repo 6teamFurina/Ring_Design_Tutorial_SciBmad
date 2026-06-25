@@ -2,7 +2,7 @@ using SciBmad
 using LinearAlgebra
 using Printf
 
-include(joinpath(@__DIR__, "..", "common", "trombone_utils.jl"))
+include(joinpath(@__DIR__, "trombone_utils.jl"))
 
 if !isdefined(Main, :SmallRingControls)
     @kwdef mutable struct SmallRingControls

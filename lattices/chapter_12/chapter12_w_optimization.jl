@@ -20,8 +20,7 @@ findchildren(element, ring) = [
     BeamlineChildRef(i) for (i, candidate) in enumerate(ring.line) if candidate === element
 ]
 
-const WORKSPACE_ROOT = normpath(joinpath(@__DIR__, "..", "..", ".."))
-const ESR_OPT_FILE = joinpath(WORKSPACE_ROOT, "esr-da-opt.jl")
+const ESR_OPT_FILE = joinpath(@__DIR__, "esr-da-opt.jl")
 
 # esr-da-opt.jl loads the full ESR ring, defines the CONTROLS object, applies
 # chromaticity-compensating sextupole expressions, and installs trombone maps.
