@@ -152,6 +152,38 @@ function chapter15_sawtooth_orbit(s; circumference, amplitude=4.0e-4, n_rf=6, ri
     return ramp + betatron_ripple
 end
 
+function chapter15_sawtooth_pz_profile(s; circumference, average=-1.0e-4, amplitude=8.0e-4, n_rf=6, ripple=4.0e-5)
+    phase = mod(n_rf * s / circumference, 1.0)
+    radiation_ramp = amplitude * (0.5 - phase)
+    rf_ripple = ripple * sin(2pi * 3.0 * s / circumference)
+    return average + radiation_ramp + rf_ripple
+end
+
+function chapter15_ring_average(values)
+    return mean(values)
+end
+
+function chapter15_taper_scale(pz_at_magnet, pz_average)
+    return (1 + pz_at_magnet) / (1 + pz_average)
+end
+
+function chapter15_taper_quadrupoles(layout; pz_average=nothing)
+    pz_at_quad = chapter15_sawtooth_pz_profile.(layout.quad_s; circumference=layout.circumference)
+    pz_ref = pz_average === nothing ? chapter15_ring_average(pz_at_quad) : pz_average
+    taper_scale = chapter15_taper_scale.(pz_at_quad, pz_ref)
+    tapered_quad_k1l = layout.quad_k1l .* taper_scale
+
+    return (;
+        quad_names = layout.quad_names,
+        quad_s = layout.quad_s,
+        quad_k1l_before = layout.quad_k1l,
+        pz_at_quad,
+        pz_average = pz_ref,
+        taper_scale,
+        quad_k1l_after = tapered_quad_k1l,
+    )
+end
+
 function chapter15_downstream_phase_advance(s_bpm, s_corrector; circumference, tune)
     ds = s_bpm >= s_corrector ? s_bpm - s_corrector : s_bpm - s_corrector + circumference
     return 2pi * tune * ds / circumference
@@ -300,6 +332,27 @@ function chapter15_write_optimized_ring(path, optimized_ring)
         layout = CH14_RING0_LAYOUT,
         ch_kicks = $(chapter15_format_float_vector(optimized_ring.ch_kicks)),
         x_bpm = $(chapter15_format_float_vector(optimized_ring.x_bpm)),
+    )
+    """
+
+    write(path, content)
+    return path
+end
+
+function chapter15_write_tapered_ring(path, tapered_ring)
+    content = """
+    # Generated from the Chapter 15.2 formula-based tapering demonstration.
+    # The taper uses K_new = K_old * (1 + pz_at_magnet) / (1 + pz_average).
+    # Include chapter15_sawtooth_ring_before.jl before using this with the ring layout.
+
+    const CH15_TAPERED_RING = (
+        pz_average = $(repr(Float64(tapered_ring.pz_average))),
+        quad_names = $(chapter15_format_string_vector(tapered_ring.quad_names)),
+        quad_s = $(chapter15_format_float_vector(tapered_ring.quad_s)),
+        quad_k1l_before = $(chapter15_format_float_vector(tapered_ring.quad_k1l_before)),
+        pz_at_quad = $(chapter15_format_float_vector(tapered_ring.pz_at_quad)),
+        taper_scale = $(chapter15_format_float_vector(tapered_ring.taper_scale)),
+        quad_k1l_after = $(chapter15_format_float_vector(tapered_ring.quad_k1l_after)),
     )
     """
 
