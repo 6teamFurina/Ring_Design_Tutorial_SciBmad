@@ -5,7 +5,7 @@ using GTPSA
 using LinearAlgebra
 using Printf
 
-const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
+const tutorial_root = normpath(joinpath(@__DIR__, "..", "..", ".."))
 
 const L_quad = 0.5
 const D1_len = 0.609
