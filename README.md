@@ -1,7 +1,45 @@
 # Ring_Design_Tutorial_SciBmad
-A ring design tutorial in SciBmad/Julia
-This document will prepare the reader for the use of SciBmad for the simulation and optimization of particle accelerators. Numbered Jupyter notebooks in this distribution will introduce the required topics in order. These notebooks contain a step by step design of an example storage ring that is similar to the Electron Storage Ring of the Electron Ion collider. Basic contect is followed by exercises, and example solutions are provided. The reader is encourage to solve the exersises themselves before using the example solutions.
 
-Exercise implementation scripts are organized by chapter under `lattices/`.
-Tutorial notebooks and generated `*_solution.jl` configuration files remain in
-the project root.
+A ring design tutorial in SciBmad/Julia.
+
+This tutorial introduces SciBmad for the simulation and optimization of particle
+accelerators. The numbered Jupyter notebooks should be read in order. Together
+they build an example storage ring similar to the Electron Storage Ring of the
+Electron-Ion Collider. The main tutorial text is followed by exercises, with
+example solutions provided for comparison. Readers are encouraged to try the
+exercises before opening the solutions.
+
+## Reading the Tutorial
+
+To read a chapter, open the corresponding numbered `.ipynb` notebook. The
+notebooks already include the tutorial text, source code, and saved output from
+the code cells, so they can be read without running anything.
+
+The `assets/` directory contains images loaded by the tutorial notebooks. Keep
+it next to the notebooks when viewing them locally so the figures render
+correctly.
+
+## Running a Notebook Yourself
+
+To re-run a chapter, download the notebook and open it in JupyterLab from the
+root of this project directory. Running from the project root keeps the relative
+paths used in the notebooks valid.
+
+For chapter `N`, also download:
+
+- `lattices/common/`
+- the non-exercise lattice files in `lattices/chapter_1/` through
+  `lattices/chapter_N/`
+- `assets/`, if the notebook displays tutorial figures or writes updated plots
+
+Exercise files are kept with their chapter under `lattices/chapter_*`. Download
+the exercise solution codes/notebooks and exercise output results if you want to work
+through those exercises.
+
+## Repository Layout
+
+- numbered `chapter*.ipynb` files: main tutorial chapters
+- `lattices/common/`: shared lattices and helper scripts used by later chapters
+- `lattices/chapter_*/`: chapter-specific lattices, generated solutions, and
+  exercise files
+- `assets/`: figures loaded by the tutorial notebooks
