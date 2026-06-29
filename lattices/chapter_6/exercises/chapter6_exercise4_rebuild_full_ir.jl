@@ -1,9 +1,9 @@
 # Chapter 6, Exercise 4:
 # Load the independently matched IPF and IPR strengths, rebuild the full IR, and rematch its downstream end to the periodic reverse-straight solution.
 
-include(joinpath(@__DIR__, "chapter6_matching_common.jl"))
+include(joinpath(@__DIR__, "..", "chapter6_matching_common.jl"))
 
-const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
+const tutorial_root = normpath(joinpath(@__DIR__, "..", "..", ".."))
 include(joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IPF_solution.jl"))
 include(joinpath(tutorial_root, "lattices", "chapter_6", "chapter6_IPR_solution.jl"))
 
@@ -53,6 +53,21 @@ function full_ir_end_twiss(k_ipr)
     return propagate_twiss(input_a, Mx), propagate_twiss(input_b, My)
 end
 
+function full_ir_end_twiss_with_knobs(k_ipr, descriptor, dk)
+    Mx, My = transverse_blocks(linear_map_with_descriptor(build_full_IR(k_ipr .+ dk), descriptor))
+    return propagate_twiss(input_a, Mx), propagate_twiss(input_b, My)
+end
+
+function full_ir_residual_with_knobs(k_ipr, descriptor, dk)
+    output_a, output_b = full_ir_end_twiss_with_knobs(k_ipr, descriptor, dk)
+    return [
+        (output_a.beta - target_end_a.beta) / target_end_a.beta,
+        output_a.alpha - target_end_a.alpha,
+        (output_b.beta - target_end_b.beta) / target_end_b.beta,
+        output_b.alpha - target_end_b.alpha,
+    ]
+end
+
 function full_ir_residual(k_ipr)
     output_a, output_b = full_ir_end_twiss(k_ipr)
     return [
@@ -63,11 +78,18 @@ function full_ir_residual(k_ipr)
     ]
 end
 
+function full_ir_residual_jacobian(k_ipr)
+    descriptor = Descriptor(6, 2, 4, 1)
+    dk = params(descriptor)
+    residual = full_ir_residual_with_knobs(k_ipr, descriptor, dk)
+    return vcat((parameter_gradient(r)' for r in residual)...)
+end
+
 println("Loaded independently matched IPF and IPR strengths.")
 println("Initial full-IR downstream residual = ", full_ir_residual(K_IPR_START))
 
 # Only the downstream QER strengths are varied in the final full-line match.
-K_IPR_FINAL = damped_least_squares(full_ir_residual, K_IPR_START; fd_step=1e-6)
+K_IPR_FINAL = damped_least_squares(full_ir_residual, K_IPR_START; jacobian=full_ir_residual_jacobian)
 K_QER1_FINAL, K_QER2_FINAL, K_QER3_FINAL, K_QER4_FINAL = K_IPR_FINAL
 
 final_a, final_b = full_ir_end_twiss(K_IPR_FINAL)

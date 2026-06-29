@@ -4,7 +4,7 @@
 # Optimized downstream IR quadrupole strengths. These values match the IP6
 # low-beta target forward into the reverse straight-section periodic solution.
 
-K_QER1 = -0.0030155854381611834
-K_QER2 = -0.06225739205956318
-K_QER3 = 0.23645705696302446
-K_QER4 = -0.2318812949581977
+K_QER1 = -0.003015585438159375
+K_QER2 = -0.062257392059564085
+K_QER3 = 0.23645705696302438
+K_QER4 = -0.23188129495819776

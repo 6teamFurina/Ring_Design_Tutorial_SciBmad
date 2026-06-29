@@ -49,7 +49,7 @@ function track_a_particle(v0, beamline)
     # SciBmad tracking is differentiated with GTPSA to obtain the linear map.
     v = similar(v0)
     v .= v0
-    bunch = Bunch(v; species=beamline.species_ref, R_ref=beamline.R_ref)
+    bunch = Bunch(v; species=beamline.species_ref, p_over_q_ref=beamline.p_over_q_ref)
     track!(bunch, beamline)
     return copy(bunch.coords.v)
 end
@@ -70,12 +70,34 @@ function transfer_matrix_gtpsa(beamline; x0=zeros(6))
     )
 end
 
+function linear_map_with_descriptor(beamline, d; x0=zeros(6))
+    # Keep descriptor-parameter dependence in the first-order map coefficients.
+    xvars = vars(d)
+    v0 = [x0[i] + xvars[i] for i in 1:6]
+    vout = track_a_particle(v0, beamline)
+    M = Matrix{Any}(undef, 6, 6)
+    for i in 1:6, j in 1:6
+        powers = zeros(Int, 6)
+        powers[j] = 1
+        M[i, j] = par(vout[i], [powers...,:])
+    end
+    return M
+end
+
+parameter_gradient(x) = GTPSA.gradient(x, include_params=true)[7:end]
+tps_const(x) = try x[zeros(Int, 6)] catch; x end
+
 transverse_blocks(M) = M[1:2, 1:2], M[3:4, 3:4]
+
+function concrete_matrix(M)
+    T = foldl(promote_type, typeof.(M); init=Float64)
+    return Matrix{T}(M)
+end
 
 # Minimal uncoupled Twiss representation used by the Chapter 6 matches.
 struct Twiss
-    beta::Float64
-    alpha::Float64
+    beta
+    alpha
 end
 
 gamma(t::Twiss) = (1 + t.alpha^2) / t.beta
@@ -104,9 +126,9 @@ function periodic_twiss(beamline)
     return periodic_twiss_from_matrix(Mx), periodic_twiss_from_matrix(My)
 end
 
-function residual_jacobian(f, x; fd_step=1e-6)
-    # The outer optimization Jacobian uses centered finite differences. This
-    # avoids nesting a strength GTPSA descriptor around the tracking descriptor.
+function residual_jacobian_fd(f, x; fd_step=1e-6)
+    # Centered finite differences are kept for Exercise 6, where the step size
+    # itself is the quantity being studied.
     r0 = f(x)
     J = zeros(length(r0), length(x))
     for j in eachindex(x)
@@ -119,9 +141,12 @@ function residual_jacobian(f, x; fd_step=1e-6)
     return J
 end
 
+residual_jacobian(f, x; fd_step=1e-6) = residual_jacobian_fd(f, x; fd_step=fd_step)
+
 function damped_least_squares(
     f,
     x0;
+    jacobian=nothing,
     fd_step=1e-6,
     maxiter=100,
     tol=1e-12,
@@ -136,7 +161,7 @@ function damped_least_squares(
     for iter in 1:maxiter
         r = f(x)
         merit_now = sum(abs2, r)
-        J = residual_jacobian(f, x; fd_step=fd_step)
+        J = jacobian === nothing ? residual_jacobian_fd(f, x; fd_step=fd_step) : jacobian(x)
         step = -(J' * J + lambda * I) \ (J' * r)
         trial = x + step
         merit_trial = sum(abs2, f(trial))
@@ -179,7 +204,7 @@ function damped_least_squares_with_history(
     for iter in 1:maxiter
         r = f(x)
         merit_now = sum(abs2, r)
-        J = residual_jacobian(f, x; fd_step=fd_step)
+        J = residual_jacobian_fd(f, x; fd_step=fd_step)
         step = -(J' * J + lambda * I) \ (J' * r)
         trial = x + step
         merit_trial = sum(abs2, f(trial))

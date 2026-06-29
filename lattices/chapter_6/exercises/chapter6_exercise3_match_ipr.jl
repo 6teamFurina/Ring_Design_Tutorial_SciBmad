@@ -2,9 +2,9 @@
 # Match the downstream interaction-region line backwards from the straight
 # section to IP6.
 
-include(joinpath(@__DIR__, "chapter6_matching_common.jl"))
+include(joinpath(@__DIR__, "..", "chapter6_matching_common.jl"))
 
-const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
+const tutorial_root = normpath(joinpath(@__DIR__, "..", "..", ".."))
 
 function build_IPR(k)
     # IPR is listed in the physical beam direction, starting at IP6 and ending
@@ -34,9 +34,27 @@ function ipr_ip_twiss(k)
     return propagate_twiss(downstream_a, inv(Mx)), propagate_twiss(downstream_b, inv(My))
 end
 
+function ipr_ip_twiss_with_knobs(k, descriptor, dk)
+    Mx, My = transverse_blocks(linear_map_with_descriptor(build_IPR(k .+ dk), descriptor))
+    return propagate_twiss(downstream_a, inv(concrete_matrix(Mx))),
+           propagate_twiss(downstream_b, inv(concrete_matrix(My)))
+end
+
+function ipr_residual_with_knobs(k, descriptor, dk)
+    output_a, output_b = ipr_ip_twiss_with_knobs(k, descriptor, dk)
+    return normalized_ip_residual(output_a, output_b)
+end
+
 function ipr_residual(k)
     output_a, output_b = ipr_ip_twiss(k)
     return normalized_ip_residual(output_a, output_b)
+end
+
+function ipr_residual_jacobian(k)
+    descriptor = Descriptor(6, 2, 4, 1)
+    dk = params(descriptor)
+    residual = ipr_residual_with_knobs(k, descriptor, dk)
+    return vcat((parameter_gradient(r)' for r in residual)...)
 end
 
 # This low-beta line has several local minima. Starting from the independently
@@ -47,7 +65,7 @@ K_start = [
     0.109225406228901,
     -0.224170378858549,
 ]
-K_IPR = damped_least_squares(ipr_residual, K_start; fd_step=1e-6)
+K_IPR = damped_least_squares(ipr_residual, K_start; jacobian=ipr_residual_jacobian)
 K_QER1, K_QER2, K_QER3, K_QER4 = K_IPR
 
 matched_a, matched_b = ipr_ip_twiss(K_IPR)

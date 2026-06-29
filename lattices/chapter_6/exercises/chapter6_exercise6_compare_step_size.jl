@@ -2,7 +2,7 @@
 # Compare IPF matching with finite-difference quadrupole-strength step sizes
 # of 1e-6 and 1e-4.
 
-include(joinpath(@__DIR__, "chapter6_matching_common.jl"))
+include(joinpath(@__DIR__, "..", "chapter6_matching_common.jl"))
 
 function build_IPF_for_step_test(k)
     return Beamline(

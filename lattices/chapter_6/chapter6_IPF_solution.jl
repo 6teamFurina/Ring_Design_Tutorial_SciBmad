@@ -4,7 +4,7 @@
 # Optimized forward IR quadrupole strengths. These values match the forward
 # straight-section periodic Twiss solution to the low-beta target at IP6.
 
-K_QEF1 = 0.47277126631107236
-K_QEF2 = -0.1123827751829804
-K_QEF3 = 0.10922540622890102
-K_QEF4 = -0.22417037885854865
+K_QEF1 = 0.4727712663110847
+K_QEF2 = -0.11238277518297729
+K_QEF3 = 0.10922540622890103
+K_QEF4 = -0.22417037885854876

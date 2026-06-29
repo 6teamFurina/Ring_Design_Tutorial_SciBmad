@@ -1,9 +1,9 @@
 # Chapter 6, Exercise 1:
 # Match the forward interaction-region line from the straight section to IP6.
 
-include(joinpath(@__DIR__, "chapter6_matching_common.jl"))
+include(joinpath(@__DIR__, "..", "chapter6_matching_common.jl"))
 
-const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
+const tutorial_root = normpath(joinpath(@__DIR__, "..", "..", ".."))
 
 function build_IPF(k)
     # The first two quadrupoles replace ordinary straight-section FODO
@@ -32,14 +32,31 @@ function ipf_end_twiss(k)
     return propagate_twiss(input_a, Mx), propagate_twiss(input_b, My)
 end
 
+function ipf_end_twiss_with_knobs(k, descriptor, dk)
+    Mx, My = transverse_blocks(linear_map_with_descriptor(build_IPF(k .+ dk), descriptor))
+    return propagate_twiss(input_a, Mx), propagate_twiss(input_b, My)
+end
+
+function ipf_residual_with_knobs(k, descriptor, dk)
+    output_a, output_b = ipf_end_twiss_with_knobs(k, descriptor, dk)
+    return normalized_ip_residual(output_a, output_b)
+end
+
 function ipf_residual(k)
     # Four independently varied quadrupoles satisfy the four IP Twiss targets.
     output_a, output_b = ipf_end_twiss(k)
     return normalized_ip_residual(output_a, output_b)
 end
 
+function ipf_residual_jacobian(k)
+    descriptor = Descriptor(6, 2, 4, 1)
+    dk = params(descriptor)
+    residual = ipf_residual_with_knobs(k, descriptor, dk)
+    return vcat((parameter_gradient(r)' for r in residual)...)
+end
+
 K_start = [K_ss, -K_ss, K_ss, -K_ss]
-K_IPF = damped_least_squares(ipf_residual, K_start; fd_step=1e-6)
+K_IPF = damped_least_squares(ipf_residual, K_start; jacobian=ipf_residual_jacobian)
 K_QEF1, K_QEF2, K_QEF3, K_QEF4 = K_IPF
 
 matched_a, matched_b = ipf_end_twiss(K_IPF)

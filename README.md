@@ -25,6 +25,8 @@ To re-run a chapter, download the notebook and open it in JupyterLab from the
 root of this project directory. Running from the project root keeps the relative
 paths used in the notebooks valid.
 
+Downloading commands for necessary packages are shown when they are used in the tutorial first time.
+
 For chapter `N`, also download:
 
 - `lattices/common/`

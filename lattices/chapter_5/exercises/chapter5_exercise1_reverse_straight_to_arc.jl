@@ -9,7 +9,7 @@
 using SciBmad
 using Printf
 
-const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
+const tutorial_root = normpath(joinpath(@__DIR__, "..", "..", ".."))
 const chapter1_solution = joinpath(tutorial_root, "lattices", "chapter_1", "chapter1_fodoF_solution.jl")
 const chapter2_solution = joinpath(tutorial_root, "lattices", "chapter_2", "chapter2_dispsupF_solution.jl")
 const chapter3_solution = joinpath(tutorial_root, "lattices", "chapter_3", "chapter3_mSSF_solution.jl")

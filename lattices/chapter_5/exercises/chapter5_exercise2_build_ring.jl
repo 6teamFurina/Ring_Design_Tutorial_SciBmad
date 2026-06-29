@@ -4,7 +4,7 @@
 using SciBmad
 using Printf
 
-const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
+const tutorial_root = normpath(joinpath(@__DIR__, "..", "..", ".."))
 
 # Gather the optimized forward and reverse quadrupole strengths.
 solution_files = [
