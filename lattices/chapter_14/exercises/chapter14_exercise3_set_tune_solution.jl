@@ -1,16 +1,22 @@
-include(joinpath(@__DIR__, "chapter14_common.jl"))
+include(joinpath(@__DIR__, "..", "chapter14_common.jl"))
 
+using GTPSA
 using LinearAlgebra
+
+const TUNE_DESCRIPTOR = Descriptor(6, 2, 2, 1)
+const DK_TUNE = params(TUNE_DESCRIPTOR)
+const ZERO6 = [0, 0, 0, 0, 0, 0]
 
 function tps_const(x)
     try
-        return x[[0, 0, 0, 0, 0, 0]]
+        return x[ZERO6]
     catch
         return x
     end
 end
 
 optics_table(tw) = hasproperty(tw, :table) ? tw.table : tw
+parameter_gradient(x) = GTPSA.gradient(x, include_params=true)[7:end]
 
 function sliced_drift(name, L, n)
     return [Drift(name=@sprintf("%s_%02d", name, i), L=L / n) for i in 1:n]
@@ -20,43 +26,45 @@ function sliced_quad(name, L, Kn1, n)
     return [Quadrupole(name=@sprintf("%s_%02d", name, i), L=L / n, Kn1=Kn1) for i in 1:n]
 end
 
-function build_tune_ring(kqf, kqd; n_quad=12, n_drift=24)
+function build_tune_ring(k; knobs=nothing, n_quad=12, n_drift=24)
+    strength(i) = isnothing(knobs) ? k[i] : k[i] + knobs[i]
+
     elements = vcat(
-        sliced_quad("QF", 0.25, kqf, n_quad),
+        sliced_quad("QF", 0.25, strength(1), n_quad),
         sliced_drift("D1", 1.00, n_drift),
-        sliced_quad("QD", 0.25, kqd, n_quad),
+        sliced_quad("QD", 0.25, strength(2), n_quad),
         sliced_drift("D2", 1.00, n_drift),
     )
 
     return Beamline(elements; species_ref=CH13_SPECIES, E_ref=CH13_E_REF)
 end
 
-function ring_tunes(k)
-    table = optics_table(twiss(build_tune_ring(k[1], k[2])))
-    return tps_const.([table.phi_1[end], table.phi_2[end]])
+function ring_tunes(k; knobs=nothing, descriptor=nothing, constants=true)
+    ring = build_tune_ring(k; knobs=knobs)
+    tw = isnothing(descriptor) ? twiss(ring) : twiss(ring, GTPSA_descriptor=descriptor)
+    table = optics_table(tw)
+    tunes = [table.phi_1[end], table.phi_2[end]]
+    return constants ? tps_const.(tunes) : tunes
 end
 
-function finite_difference_jacobian(f, x; step=1e-5)
-    r0 = f(x)
-    J = zeros(length(r0), length(x))
+function tune_residual(k, target)
+    return ring_tunes(k) - target
+end
 
-    for j in eachindex(x)
-        xp = copy(x)
-        xm = copy(x)
-        xp[j] += step
-        xm[j] -= step
-        J[:, j] = (f(xp) - f(xm)) / (2step)
-    end
+function tune_residual_with_knobs(k, target)
+    return ring_tunes(k; knobs=DK_TUNE, descriptor=TUNE_DESCRIPTOR, constants=false) .- target
+end
 
-    return J
+function tune_jacobian(k, target)
+    residual = tune_residual_with_knobs(k, target)
+    return vcat((parameter_gradient(r)' for r in residual)...)
 end
 
 function match_tunes(k0, target; max_iter=10, tolerance=1e-9)
     k = copy(k0)
-    residual(k) = ring_tunes(k) - target
 
     for iteration in 1:max_iter
-        r = residual(k)
+        r = tune_residual(k, target)
         tunes = r + target
         @printf(
             "iteration %2d: Qx = %.9f, Qy = %.9f, residual norm = %.3e\n",
@@ -68,7 +76,7 @@ function match_tunes(k0, target; max_iter=10, tolerance=1e-9)
 
         norm(r) < tolerance && break
 
-        J = finite_difference_jacobian(residual, k)
+        J = tune_jacobian(k, target)
         step = -(J \ r)
         step_norm = norm(step)
         step_norm > 0.25 && (step .*= 0.25 / step_norm)
@@ -79,8 +87,8 @@ function match_tunes(k0, target; max_iter=10, tolerance=1e-9)
 end
 
 function plot_beta_beating(k_design, k_model)
-    design_table = optics_table(twiss(build_tune_ring(k_design[1], k_design[2])))
-    model_table = optics_table(twiss(build_tune_ring(k_model[1], k_model[2])))
+    design_table = optics_table(twiss(build_tune_ring(k_design)))
+    model_table = optics_table(twiss(build_tune_ring(k_model)))
 
     s = tps_const.(model_table.s)
     beta_x_design = tps_const.(design_table.beta_1)
@@ -90,8 +98,9 @@ function plot_beta_beating(k_design, k_model)
 
     beating_x = 100 .* (beta_x_model .- beta_x_design) ./ beta_x_design
     beating_y = 100 .* (beta_y_model .- beta_y_design) ./ beta_y_design
+    tune_difference = ring_tunes(k_model) - ring_tunes(k_design)
 
-    fig = Figure(size=(780, 420))
+    fig = Figure(size=(800, 620))
     ax = Axis(
         fig[1, 1],
         xlabel="s [m]",
@@ -101,6 +110,16 @@ function plot_beta_beating(k_design, k_model)
     lines!(ax, s, beating_x; color=:royalblue3, linewidth=2, label="beta_1")
     lines!(ax, s, beating_y; color=:darkorange2, linewidth=2, label="beta_2")
     axislegend(ax; position=:rt)
+
+    ax2 = Axis(
+        fig[2, 1],
+        ylabel="tune difference",
+        title="Tune(model) - tune(design)",
+        xticks=([1, 2], ["Qx", "Qy"]),
+    )
+    barplot!(ax2, [1, 2], tune_difference; color=[:royalblue3, :darkorange2])
+    hlines!(ax2, [0.0]; color=:gray45, linestyle=:dash)
+
     return fig
 end
 

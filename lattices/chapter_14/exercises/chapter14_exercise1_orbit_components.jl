@@ -1,4 +1,4 @@
-include(joinpath(@__DIR__, "chapter14_common.jl"))
+include(joinpath(@__DIR__, "..", "chapter14_common.jl"))
 
 function add_mixed_middle_panel!(fig, row, title, model_orbit, design_orbit)
     ax = Axis(fig[row, 1], xlabel="s [m]", ylabel="orbit [mm]", title=title)

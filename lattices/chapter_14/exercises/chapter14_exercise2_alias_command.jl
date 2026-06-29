@@ -1,4 +1,4 @@
-include(joinpath(@__DIR__, "chapter14_common.jl"))
+include(joinpath(@__DIR__, "..", "chapter14_common.jl"))
 
 function setit!(state, value)
     set_kick!(state.model, "Q_KICK"; vkick=value)
