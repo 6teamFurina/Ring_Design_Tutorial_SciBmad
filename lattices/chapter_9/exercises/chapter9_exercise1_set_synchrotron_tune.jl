@@ -16,7 +16,7 @@ import DifferentiationInterface as DI
 using LinearAlgebra
 using Printf
 
-const tutorial_root = normpath(joinpath(@__DIR__, "..", ".."))
+const tutorial_root = normpath(joinpath(@__DIR__, "..", "..", ".."))
 include(joinpath(tutorial_root, "lattices", "chapter_5", "chapter5_ring_definition.jl"))
 
 const C5 = Chapter5Ring
