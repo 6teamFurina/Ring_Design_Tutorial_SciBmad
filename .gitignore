@@ -1,2 +1,5 @@
 # Jupyter Notebook automatic checkpoints
 .ipynb_checkpoints/
+
+# Personal JupyterLab workspace state
+.jupyter/
