@@ -32,6 +32,44 @@ exercises before opening the solutions.
 | 16 | `chapter16_error_fitting_scibmad.ipynb` | Error fitting |
 | 17 | `chapter17_spin_tracking_with_ramping_scibmad.ipynb` | Spin tracking with ramping |
 
+## Which Lattice Each Chapter Uses
+
+The chapters fall into three groups. Knowing which group a chapter belongs to
+explains why some chapters build on each other while others stand alone.
+
+- **Building the example ring (chapters 1–3, 5–7, 9).** These chapters
+  progressively construct one EIC-ESR-like storage ring. Each stage optimizes a
+  piece and saves its strengths to a small solution file under `lattices/`, which
+  the next stage loads. This is the main through-line of the tutorial.
+- **Standalone teaching examples (chapters 0, 4, 8, 11, 14).** These use a small
+  purpose-built example (a toy objective, a single misaligned element, one
+  bend-and-quadrupole line, etc.) to isolate one concept. They do not use the
+  example ring.
+- **Separate pre-built lattices (chapters 10, 12, 13, 15, 16, 17).** These
+  demonstrate a capability on an independent lattice supplied with the chapter,
+  rather than on the ring built in chapters 1–9.
+
+| Chapter | Lattice / model | Group |
+|---|---|---|
+| 0 | toy two-variable objective | standalone example |
+| 1 | forward arc FODO cell, built from scratch → `chapter1_fodoF_solution.jl` | builds the ring |
+| 2 | dispersion suppressor; loads chapter 1 → `chapter2_dispsupF_solution.jl` | builds the ring |
+| 3 | matching section; loads chapter 2 → `chapter3_mSSF_solution.jl` | builds the ring |
+| 4 | single misaligned quadrupole / patch element | standalone example |
+| 5 | full ring assembled from the chapter 1–3 solutions → `chapter5_ring_definition.jl` | builds the ring |
+| 6 | low-beta interaction region inserted into the chapter 5 ring | builds the ring |
+| 7 | tune cell; loads `chapter5_ring_definition.jl` + `chapter6_IR_solution.jl` | builds the ring |
+| 8 | one bend-and-quadrupole line, single-particle tracking | standalone example |
+| 9 | RF cavities inserted into `chapter5_ring_definition.jl` | builds the ring |
+| 10 | compact 16-cell electron storage ring, built inline | separate lattice |
+| 11 | quadrupole-and-bend control example | standalone example |
+| 12 | compact demonstration ring + ESR-style lattice (`esr-da-opt.jl`) | separate lattice |
+| 13 | ESR v6.3.1 lattice (`esr-v6.3.1.jl`) | separate lattice |
+| 14 | drift–bend–quadrupole example | standalone example |
+| 15 | sawtooth `ring0` beamline (`chapter15_b_sawtooth_ring0_beamline.jl`) | separate lattice |
+| 16 | RCS lattice (`RCSV5S0.jl`) | separate lattice |
+| 17 | AGS-like spin lattice (`spin_lat.bmad` / `ags.jl`) | separate lattice |
+
 ## Reading the Tutorial
 
 To read a chapter, open the corresponding numbered `.ipynb` notebook. The
