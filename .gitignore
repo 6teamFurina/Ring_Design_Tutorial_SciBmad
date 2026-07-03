@@ -1,5 +1,3 @@
-Manifest.toml
-
 # Jupyter Notebook automatic checkpoints
 .ipynb_checkpoints/
 
