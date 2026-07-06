@@ -34,7 +34,7 @@ const K_ss = 0.351957452649287
 const species_ref = Species("electron")
 const E_ref = 18e9
 
-# Store all quadrupole strengths under the names used in the original tutorial.
+# Store all quadrupole strengths under the Bmad-style tutorial names.
 quad_strength = Dict(
     :QF => kQF_arc,
     :QD => kQD_arc,

@@ -23,7 +23,7 @@ const C5 = Chapter5Ring
 const TARGET_QZ = 0.05
 
 # Chapter 9 RF-cell dimensions. The 0.3 m spacing replaces the negative
-# drift produced by the inconsistent expression in the original PDF.
+# drift produced by the inconsistent Bmad-style equal-drift expression.
 const RF_L = 4.017
 const RF_HARMON = 7560
 const DRF_L = 0.3
@@ -51,7 +51,7 @@ repeat_FODORF(n, voltage) =
 
 function build_ring_with_rf(voltage)
     # The four RF cells straddle the SEXTANT9/SEXTANT11 boundary, matching
-    # the placement specified in the original Chapter 9 example.
+    # the placement specified in the Bmad-style Chapter 9 example.
     sextant9_rf = vcat(
         C5.make_elements(C5.repeat_line(C5.FODOSSF, 4)),
         C5.make_elements(C5.SS_TO_ARCF),
