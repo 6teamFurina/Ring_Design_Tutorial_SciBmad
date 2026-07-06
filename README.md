@@ -31,6 +31,7 @@ exercises before opening the solutions.
 | 15 | `chapter15_orbit_correction_scibmad.ipynb` | Orbit correction |
 | 16 | `chapter16_error_fitting_scibmad.ipynb` | Error fitting |
 | 17 | `chapter17_spin_tracking_with_ramping_scibmad.ipynb` | Spin tracking with ramping |
+| Appendix A | `appendixA_numerical_methods_scibmad.ipynb` | Numerical methods behind SciBmad |
 
 ## Which Lattice Each Chapter Uses
 
@@ -69,6 +70,16 @@ explains why some chapters build on each other while others stand alone.
 | 15 | sawtooth `ring0` beamline (`chapter15_b_sawtooth_ring0_beamline.jl`) | separate lattice |
 | 16 | RCS lattice (`RCSV5S0.jl`) | separate lattice |
 | 17 | AGS-like spin lattice (`spin_lat.bmad` / `ags.jl`) | separate lattice |
+| Appendix A | none | conceptual reference |
+
+## Appendix
+
+Appendix A summarizes the numerical ideas that sit underneath the tutorial
+workflows. It explains tracking methods and Yoshida integration, `Optim.jl`
+method choices, response-matrix optimization with Gauss-Newton and damped least
+squares, Newton solvers for closed orbits, and the phase-advance logic behind
+trombones. It has no separate lattice files; it is intended as a conceptual
+reference to read alongside the numbered chapters.
 
 ## Reading the Tutorial
 
