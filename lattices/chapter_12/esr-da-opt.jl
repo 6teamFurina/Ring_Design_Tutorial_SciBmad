@@ -1,5 +1,6 @@
 ring = include(joinpath(@__DIR__, "..", "common", "esr-main-18GeV-1IP.jl"))
-include(joinpath(@__DIR__, "trombone_utils.jl"))
+include(joinpath(@__DIR__, "normalizing_map_trombone_utils.jl"))
+
 @kwdef mutable struct Controls
     # These are Union{TPS64,Float64} bc
     # we need to make all TPSs and see how they affect 
@@ -182,19 +183,22 @@ for i in 1:2:length(sfs_11)-1
     sfs_11[i+1].Kn2 = DefExpr(()->KSF+CONTROLS.dksf2_11)
 end
 
-# Attach phase trombones to marker locations. The map itself is defined in
-# trombone_utils.jl so the chapter 12-specific mechanism is easy to inspect.
-trombones = [mlrf_6, mlrr_6, ip8, ip10, ip12, ip2, ip4]
-tw = twiss(ring)
-t = tw.table
+# Mark phase trombone locations. make_trombones! will later find all elements
+# with kind == "Trombone", compute one reference twiss with normalizing_map=true,
+# and capture the local A matrices in each element's transport_map closure.
+trombone_specs = [
+    (mlrf_6, DefExpr(()->CONTROLS.dnux_mlrf_6), DefExpr(()->CONTROLS.dnuy_mlrf_6)),
+    (mlrr_6, DefExpr(()->CONTROLS.dnux_mlrr_6), DefExpr(()->CONTROLS.dnuy_mlrr_6)),
+    (ip8,    DefExpr(()->CONTROLS.dnux_ip8),    DefExpr(()->CONTROLS.dnuy_ip8)),
+    (ip10,   DefExpr(()->CONTROLS.dnux_ip10),   DefExpr(()->CONTROLS.dnuy_ip10)),
+    (ip12,   DefExpr(()->CONTROLS.dnux_ip12),   DefExpr(()->CONTROLS.dnuy_ip12)),
+    (ip2,    DefExpr(()->CONTROLS.dnux_ip2),    DefExpr(()->CONTROLS.dnuy_ip2)),
+    (ip4,    DNUX_IP4,                           DNUY_IP4),
+]
 
-attach_trombone!(mlrf_6, ring, t, DefExpr(()->CONTROLS.dnux_mlrf_6), DefExpr(()->CONTROLS.dnuy_mlrf_6))
-attach_trombone!(mlrr_6, ring, t, DefExpr(()->CONTROLS.dnux_mlrr_6), DefExpr(()->CONTROLS.dnuy_mlrr_6))
-attach_trombone!(ip8, ring, t, DefExpr(()->CONTROLS.dnux_ip8), DefExpr(()->CONTROLS.dnuy_ip8))
-attach_trombone!(ip10, ring, t, DefExpr(()->CONTROLS.dnux_ip10), DefExpr(()->CONTROLS.dnuy_ip10))
-attach_trombone!(ip12, ring, t, DefExpr(()->CONTROLS.dnux_ip12), DefExpr(()->CONTROLS.dnuy_ip12))
-attach_trombone!(ip2, ring, t, DefExpr(()->CONTROLS.dnux_ip2), DefExpr(()->CONTROLS.dnuy_ip2))
-attach_trombone!(ip4, ring, t, DNUX_IP4, DNUY_IP4)
+for (element, dnux, dnuy) in trombone_specs
+    mark_trombone!(element, ring, dnux, dnuy)
+end
 
 # Finally we need to define compensator families to keep chromaticity +1
 # 6 arcs * 2 families * 2 planes = 24 families total 
