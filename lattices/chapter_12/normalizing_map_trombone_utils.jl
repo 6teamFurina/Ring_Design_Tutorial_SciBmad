@@ -3,7 +3,8 @@ using LinearAlgebra: inv
 # Phase trombone utilities using SciBmad's normalizing map `a`.
 #
 # This version assumes twiss(...; normalizing_map=true) stores a normalizing map
-# at each element. The trombone matrix is built as A * R(dphi_1, dphi_2) * A^-1.
+# at each element. The trombone matrix is built as
+# A * R(dphi_1, dphi_2, dphi_3) * A^-1.
 
 function load_ring(path; make_trombones=false, kwargs...)
     ring = include(path)
@@ -13,11 +14,11 @@ function load_ring(path; make_trombones=false, kwargs...)
     return ring
 end
 
-function Trombone(; dnux=0.0, dnuy=0.0, kwargs...)
+function Trombone(; dnu1=0.0, dnu2=0.0, dnu3=0.0, kwargs...)
     return LineElement(;
         kind="Trombone",
         L=0.0,
-        transport_map_params=(dnux, dnuy),
+        transport_map_params=(dnu1, dnu2, dnu3),
         kwargs...,
     )
 end
@@ -114,11 +115,13 @@ function _normalizing_map_check_6x6(A)
     return nothing
 end
 
-function normalizing_map_trombone_rotation(dphi_1, dphi_2, sample; sin_sign=1)
+function normalizing_map_trombone_rotation(dphi_1, dphi_2, dphi_3, sample; sin_sign=1)
     c1 = cos(dphi_1)
     s1 = sin_sign * sin(dphi_1)
     c2 = cos(dphi_2)
     s2 = sin_sign * sin(dphi_2)
+    c3 = cos(dphi_3)
+    s3 = sin_sign * sin(dphi_3)
 
     one_entry = one(sample) * one(c1)
     zero_entry = zero(one_entry)
@@ -138,19 +141,24 @@ function normalizing_map_trombone_rotation(dphi_1, dphi_2, sample; sin_sign=1)
     R[4, 3] = -s2
     R[4, 4] = c2
 
+    R[5, 5] = c3
+    R[5, 6] = s3
+    R[6, 5] = -s3
+    R[6, 6] = c3
+
     return R
 end
 
-function normalizing_map_trombone_matrix(A, dphi_1, dphi_2; sin_sign=1)
+function normalizing_map_trombone_matrix(A, dphi_1, dphi_2, dphi_3=0.0; sin_sign=1)
     _normalizing_map_check_6x6(A)
-    R = normalizing_map_trombone_rotation(dphi_1, dphi_2, A[1, 1]; sin_sign=sin_sign)
+    R = normalizing_map_trombone_rotation(dphi_1, dphi_2, dphi_3, A[1, 1]; sin_sign=sin_sign)
     return A * R * inv(A)
 end
 
-function normalizing_map_trombone_matrix(A, Ainv, dphi_1, dphi_2; sin_sign=1)
+function normalizing_map_trombone_matrix(A, Ainv, dphi_1, dphi_2, dphi_3=0.0; sin_sign=1)
     _normalizing_map_check_6x6(A)
     _normalizing_map_check_6x6(Ainv)
-    R = normalizing_map_trombone_rotation(dphi_1, dphi_2, A[1, 1]; sin_sign=sin_sign)
+    R = normalizing_map_trombone_rotation(dphi_1, dphi_2, dphi_3, A[1, 1]; sin_sign=sin_sign)
     return A * R * Ainv
 end
 
@@ -170,9 +178,8 @@ function normalizing_map_trombone_map(A; sin_sign=1)
     Ainv = inv(A)
 
     return function (v, q, params)
-        dnux = params[1]
-        dnuy = params[2]
-        M = normalizing_map_trombone_matrix(A, Ainv, dnux, dnuy; sin_sign=sin_sign)
+        dnu1, dnu2, dnu3 = _normalizing_map_trombone_param_tuple(params)
+        M = normalizing_map_trombone_matrix(A, Ainv, dnu1, dnu2, dnu3; sin_sign=sin_sign)
         return (_normalizing_map_trombone_apply_6x6(M, v), q)
     end
 end
@@ -184,29 +191,38 @@ function normalizing_map_trombone_A(element, ring, twiss_table)
     return A
 end
 
-function normalizing_map_trombone_params(dnux, dnuy)
-    return (dnux, dnuy)
+function normalizing_map_trombone_params(dnu1, dnu2, dnu3=0.0)
+    return (dnu1, dnu2, dnu3)
+end
+
+function _normalizing_map_trombone_param_tuple(params)
+    if length(params) == 2
+        return (params[1], params[2], 0.0)
+    elseif length(params) == 3
+        return (params[1], params[2], params[3])
+    end
+
+    error("Trombone expects two or three transport_map_params: (dnu1, dnu2[, dnu3]).")
 end
 
 function normalizing_map_trombone_params(element)
     params = _normalizing_map_property(element, :transport_map_params)
-    params === nothing && error("Trombone element has no transport_map_params. Expected (dnux, dnuy).")
-    length(params) == 2 || error("Trombone element expects exactly two transport_map_params: (dnux, dnuy).")
-    return params
+    params === nothing && error("Trombone element has no transport_map_params. Expected (dnu1, dnu2[, dnu3]).")
+    return _normalizing_map_trombone_param_tuple(params)
 end
 
-function mark_trombone!(element, dnux, dnuy)
+function mark_trombone!(element, dnu1, dnu2; dnu3=0.0)
     element.kind = "Trombone"
-    element.transport_map_params = normalizing_map_trombone_params(dnux, dnuy)
+    element.transport_map_params = normalizing_map_trombone_params(dnu1, dnu2, dnu3)
     return element
 end
 
-function mark_trombone!(element, ring, dnux, dnuy)
-    mark_trombone!(element, dnux, dnuy)
+function mark_trombone!(element, ring, dnu1, dnu2; dnu3=0.0)
+    mark_trombone!(element, dnu1, dnu2; dnu3=dnu3)
 
     idx = _normalizing_map_trombone_beamline_index(element, ring)
     ring_element = ring.line[idx]
-    mark_trombone!(ring_element, dnux, dnuy)
+    mark_trombone!(ring_element, dnu1, dnu2; dnu3=dnu3)
     return ring_element
 end
 
@@ -214,32 +230,27 @@ function normalizing_map_trombone_elements(ring)
     return filter(element -> _normalizing_map_property(element, :kind) == "Trombone", ring.line)
 end
 
-function _set_normalizing_map_trombone!(element, A, dnux, dnuy; sin_sign=1)
+function _set_normalizing_map_trombone!(element, A, dnu1, dnu2, dnu3=0.0; sin_sign=1)
     element.transport_map = normalizing_map_trombone_map(A; sin_sign=sin_sign)
-    element.transport_map_params = normalizing_map_trombone_params(dnux, dnuy)
+    element.transport_map_params = normalizing_map_trombone_params(dnu1, dnu2, dnu3)
     return element
 end
 
-function make_trombone!(element, ring, twiss_table, dnux, dnuy; sin_sign=1)
+function make_trombone!(element, ring, twiss_table, dnu1, dnu2; dnu3=0.0, sin_sign=1)
     ring_element = _normalizing_map_trombone_ring_element(element, ring)
     A = normalizing_map_trombone_A(ring_element, ring, twiss_table)
-    _set_normalizing_map_trombone!(ring_element, A, dnux, dnuy; sin_sign=sin_sign)
+    _set_normalizing_map_trombone!(ring_element, A, dnu1, dnu2, dnu3; sin_sign=sin_sign)
 
     if ring_element !== element
-        _set_normalizing_map_trombone!(element, A, dnux, dnuy; sin_sign=sin_sign)
+        _set_normalizing_map_trombone!(element, A, dnu1, dnu2, dnu3; sin_sign=sin_sign)
     end
 
     return ring_element
 end
 
 function make_trombone!(element, ring, twiss_table; sin_sign=1)
-    dnux, dnuy = normalizing_map_trombone_params(element)
-    return make_trombone!(element, ring, twiss_table, dnux, dnuy; sin_sign=sin_sign)
-end
-
-function make_trombone!(element, ring, dnux, dnuy; sin_sign=1, twiss_kwargs...)
-    tw = _normalizing_map_twiss(ring; twiss_kwargs...)
-    return make_trombone!(element, ring, tw.table, dnux, dnuy; sin_sign=sin_sign)
+    dnu1, dnu2, dnu3 = normalizing_map_trombone_params(element)
+    return make_trombone!(element, ring, twiss_table, dnu1, dnu2; dnu3=dnu3, sin_sign=sin_sign)
 end
 
 function make_trombone!(element, ring; sin_sign=1, twiss_kwargs...)
@@ -252,9 +263,15 @@ function _make_trombone_from_spec!(ring, twiss_table, element; sin_sign=1)
 end
 
 function _make_trombone_from_spec!(ring, twiss_table, spec::Tuple; sin_sign=1)
-    length(spec) == 3 || error("Trombone spec tuple must be (element, dnux, dnuy).")
-    element, dnux, dnuy = spec
-    return make_trombone!(element, ring, twiss_table, dnux, dnuy; sin_sign=sin_sign)
+    if length(spec) == 3
+        element, dnu1, dnu2 = spec
+        return make_trombone!(element, ring, twiss_table, dnu1, dnu2; sin_sign=sin_sign)
+    elseif length(spec) == 4
+        element, dnu1, dnu2, dnu3 = spec
+        return make_trombone!(element, ring, twiss_table, dnu1, dnu2; dnu3=dnu3, sin_sign=sin_sign)
+    end
+
+    error("Trombone spec tuple must be (element, dnu1, dnu2[, dnu3]).")
 end
 
 function make_trombones!(ring, trombones; sin_sign=1, twiss_kwargs...)
