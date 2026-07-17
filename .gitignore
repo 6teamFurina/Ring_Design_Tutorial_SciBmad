@@ -1,5 +1,8 @@
 Manifest.toml
 
+# Local Bmad source lattices used to regenerate SciBmad exports
+*.bmad
+
 # Jupyter Notebook automatic checkpoints
 .ipynb_checkpoints/
 
