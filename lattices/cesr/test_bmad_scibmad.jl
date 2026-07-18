@@ -18,6 +18,7 @@ Useful options:
     --strict              fail if the numerical tolerances are exceeded
     --reference=PATH      use another .tar.gz archive or raw fallback text file
     --csv=PATH            choose the per-element CSV output path
+    --rf-on               enable all four 1.5 MV CESR RF cavities in SciBmad
 """
 
 using LinearAlgebra
@@ -172,8 +173,10 @@ function write_csv(path, rows)
     end
 end
 
-function compare(reference; max_elements::Union{Nothing,Int}=nothing, csv_path=DEFAULT_CSV)
+function compare(reference; max_elements::Union{Nothing,Int}=nothing, csv_path=DEFAULT_CSV,
+                 rf_on::Bool=false)
     ring = load_cesr()
+    rf_on && set_cesr_rf!(ring; on=true)
     lattice_report = (
         kicker_elements=count(element -> element.kind == "Kicker", ring.line),
         nonzero_kicker_elements=count(
@@ -282,6 +285,7 @@ function main(args=ARGS)
     csv_path = abspath(option_value(args, "--csv=", DEFAULT_CSV))
     parse_only = "--parse-only" in args
     strict = "--strict" in args
+    rf_on = "--rf-on" in args
     max_text = option_value(args, "--max-elements=", "")
     max_elements = isempty(max_text) ? nothing : parse(Int, max_text)
 
@@ -292,7 +296,8 @@ function main(args=ARGS)
     isempty(extra) || println("Reference also contains non-tracking lord indices: $extra")
     parse_only && return 0
 
-    rows, lattice_report = compare(reference; max_elements, csv_path)
+    println("SciBmad RF mode: ", rf_on ? "ON (4 x 1.5 MV)" : "OFF")
+    rows, lattice_report = compare(reference; max_elements, csv_path, rf_on)
     print_summary(rows, reference, csv_path)
     println("Consolidated CESR lattice: $lattice_report")
 

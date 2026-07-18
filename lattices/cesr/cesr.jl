@@ -1587,6 +1587,8 @@ cesr = Beamline([ ip_l0, cleo_sol!s3, det_00w, cleo_sol!s4, q00w!mcleo_sol, q00w
    end_b0]; pc_ref =  5.28899997531480026E+009, species_ref = Species("electron"))
 
 const _CESR_TEMPLATE = cesr
+const CESR_RF_NAMES = Set(["RF_W1", "RF_W2", "RF_E1", "RF_E2"])
+const CESR_RF_VOLTAGE = 1.5e6
 
 """Return an independent copy of the consolidated CESR ring."""
 function load_cesr()
@@ -1596,4 +1598,20 @@ function load_cesr()
     p_over_q_ref=_CESR_TEMPLATE.p_over_q_ref,
     species_ref=_CESR_TEMPLATE.species_ref,
   )
+end
+
+"""Enable or disable all four CESR RF cavities on a copied CESR ring."""
+function set_cesr_rf!(ring; on::Bool=true, voltage::Real=CESR_RF_VOLTAGE)
+  selected_voltage = on ? Float64(voltage) : 0.0
+  changed = String[]
+  for ele in ring.line
+    if uppercase(String(ele.name)) in CESR_RF_NAMES
+      ele.voltage = selected_voltage
+      push!(changed, String(ele.name))
+    end
+  end
+  length(changed) == 4 || error(
+    "Expected four CESR RF cavities, changed $(length(changed)): $(changed)",
+  )
+  return ring
 end
